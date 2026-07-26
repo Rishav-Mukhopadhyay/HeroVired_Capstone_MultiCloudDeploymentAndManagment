@@ -1,0 +1,23 @@
+{
+  "name": "seed_db",
+  "version": "1.0.0",
+  "description": "Standalone script that seeds the MERN-Ecommerce database (an admin user plus sample categories/brands/products) on demand. Deployed/run independently of client and server — never invoked automatically by either.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "jest --coverage",
+    "test:watch": "jest --watch"
+  },
+  "dependencies": {
+    "@faker-js/faker": "^8.4.1",
+    "bcryptjs": "^2.4.3",
+    "chalk": "^2.4.2",
+    "dotenv": "^8.0.0",
+    "mongoose": "^5.5.11",
+    "mongoose-slug-generator": "^1.0.4"
+  },
+  "devDependencies": {
+    "jest": "^30.4.2",
+    "mongodb-memory-server": "^11.2.0"
+  }
+}
