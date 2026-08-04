@@ -10,7 +10,6 @@ dist
 
 # test
 coverage
-server/tests/globalConfig.json
 seed_db/tests/globalConfig.json
 
 # misc

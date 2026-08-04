@@ -1,0 +1,21 @@
+{
+  "name": "api_gateway",
+  "version": "1.0.0",
+  "description": "Reverse proxy in front of the MERN Ecommerce microservices (identity_server, catalog_server, commerce_server, notification_server) — routes by path prefix, so client/ keeps talking to one API_URL/Socket.IO endpoint unchanged. Deployed/run independently of every service it proxies to.",
+  "main": "index.js",
+  "scripts": {
+    "dev": "nodemon",
+    "start": "cross-env NODE_ENV=production node index.js"
+  },
+  "dependencies": {
+    "chalk": "^2.4.2",
+    "cors": "^2.8.5",
+    "dotenv": "^8.0.0",
+    "express": "^4.17.1",
+    "http-proxy-middleware": "^2.0.6"
+  },
+  "devDependencies": {
+    "cross-env": "^5.2.1",
+    "nodemon": "^1.19.1"
+  }
+}

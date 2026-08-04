@@ -1,0 +1,24 @@
+# MERN Ecommerce — Notification microservice
+
+Express + MongoDB + Socket.IO microservice: the "contact us" form, order-confirmation email, and the real-time member<->admin support chat. Split out of the original `server/` monolith. Deployed/run independently of `identity_server`, `catalog_server`, `commerce_server`, and `api_gateway` — shares the MongoDB database and `JWT_SECRET` with them.
+
+`commerce_server` calls this service's `POST /api/notification/order-confirmation` (internal, unauthenticated — trusted service-to-service call, not client-facing) right after placing an order, instead of sending mail in-process the way the original monolith did.
+
+## Setup
+
+```
+cd notification_server
+npm install
+cp .env.example .env
+```
+
+Fill in `.env` the same way as `identity_server/README.md` describes (`PORT` defaults to `3104`), plus `MAIL_FROM` (optional — see `server/README.md`'s original description; email sending is mocked, logs instead of delivering).
+
+## Run
+
+```
+npm run dev
+npm run start
+```
+
+Routes: `/api/contact/*`, `/api/notification/order-confirmation` (internal), plus a Socket.IO server on the same port. Normally reached through `api_gateway`, not directly, in local dev.

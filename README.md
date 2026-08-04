@@ -32,7 +32,7 @@ An ecommerce store built with MERN stack, and utilizes third party API's. This e
 2. Sellers or Merchants manage their own brand component
 3. Admins manage and control the entire store components 
 
-`client/` and `server/` are independent apps, each deployed separately — see [client/README.md](client/README.md) and [server/README.md](server/README.md) for how to set up and deploy each one on its own. This root-level setup is only for running both together during local development. `seed_db/` is a third, separate project for seeding the database on demand — see [seed_db/README.md](seed_db/README.md); it never runs as a side effect of starting `client`/`server`.
+The backend is split into four independent microservices plus a gateway — `identity_server/` (auth, user, address), `catalog_server/` (product, category, brand, review, wishlist), `commerce_server/` (cart, order, merchant), and `notification_server/` (contact, order-confirmation email, Socket.IO support chat) — fronted by `api_gateway/`, a reverse proxy that routes by path prefix. `client/` only ever talks to `api_gateway/` (`API_URL=http://localhost:3000/api`); it has no direct knowledge of the individual services behind it. Each of these six apps is independently deployable — see each one's own README for setup/deploy details: [client/README.md](client/README.md), [identity_server/README.md](identity_server/README.md), [catalog_server/README.md](catalog_server/README.md), [commerce_server/README.md](commerce_server/README.md), [notification_server/README.md](notification_server/README.md), [api_gateway/README.md](api_gateway/README.md). This root-level setup is only for running all of them together during local development. `seed_db/` is a separate project for seeding the database on demand — see [seed_db/README.md](seed_db/README.md); it never runs as a side effect of starting any of the above.
 
 ### Features:
 
@@ -45,11 +45,11 @@ An ecommerce store built with MERN stack, and utilizes third party API's. This e
 
 ## Database Seed
 
-Seeding (an admin user plus sample categories/brands/products) is its own standalone project, `seed_db/` — it's run on demand, independently of `client`/`server`, and never runs automatically when either of those starts. See [seed_db/README.md](seed_db/README.md) for setup and usage.
+Seeding (an admin user plus sample categories/brands/products) is its own standalone project, `seed_db/` — it's run on demand, independently of the other apps, and never runs automatically when any of them starts. See [seed_db/README.md](seed_db/README.md) for setup and usage.
 
 ## Local development install
 
-`npm install` in the project root will install dependencies in both `client` and `server`, for running both together locally. [See package.json](package.json)
+`npm install` in the project root will install dependencies in `client`, every microservice, and `api_gateway`, for running them all together locally. [See package.json](package.json)
 
 Some basic Git commands are:
 
@@ -61,10 +61,16 @@ npm install
 
 ## ENV
 
-Create `.env` file for both client and server. See examples and full variable descriptions:
+Create a `.env` file for the client, each microservice, and the gateway. See examples and full variable descriptions:
 
 - [client/.env.example](client/.env.example) — details in [client/README.md](client/README.md)
-- [server/.env.example](server/.env.example) — details in [server/README.md](server/README.md)
+- [identity_server/.env.example](identity_server/.env.example) — details in [identity_server/README.md](identity_server/README.md)
+- [catalog_server/.env.example](catalog_server/.env.example) — details in [catalog_server/README.md](catalog_server/README.md)
+- [commerce_server/.env.example](commerce_server/.env.example) — details in [commerce_server/README.md](commerce_server/README.md)
+- [notification_server/.env.example](notification_server/.env.example) — details in [notification_server/README.md](notification_server/README.md)
+- [api_gateway/.env.example](api_gateway/.env.example) — details in [api_gateway/README.md](api_gateway/README.md)
+
+Every microservice's `JWT_SECRET` must be identical (stateless JWT verified independently by each one), and all of them plus `seed_db/` point `MONGO_URI` at the same database.
 
 ## Start development
 
@@ -72,11 +78,11 @@ Create `.env` file for both client and server. See examples and full variable de
 npm run dev
 ```
 
-Runs the client dev server and the server API concurrently, for local development only.
+Runs the client dev server, all four microservices, and the API gateway concurrently, for local development only.
 
 ## Deployment
 
-`client/` and `server/` deploy independently of each other and of this root setup — see [client/README.md](client/README.md#deploying) and [server/README.md](server/README.md#deploying).
+Each of `client/`, `identity_server/`, `catalog_server/`, `commerce_server/`, `notification_server/`, and `api_gateway/` deploys independently of the others and of this root setup — see each one's own README's "Deploying"/"Run" section. Deploying the microservices to different clouds only requires pointing `api_gateway`'s `IDENTITY_URL`/`CATALOG_URL`/`COMMERCE_URL`/`NOTIFICATION_URL` at wherever each one ends up.
 
 ## Languages & tools
 
