@@ -14,7 +14,9 @@ afterEach(() => {
 });
 
 it('renders "Your Orders" at /dashboard/orders', async () => {
-  mock.onGet(`${API_URL}/order/me`).reply(200, { orders: [], totalPages: 1, currentPage: 1, count: 0 });
+  mock.onPost(`${API_URL}/graphql`).reply(200, {
+    data: { myOrders: { orders: [], totalPages: 1, currentPage: 1, count: 0 } }
+  });
 
   renderWithProviders(<Order />, {
     route: '/dashboard/orders',
@@ -25,7 +27,9 @@ it('renders "Your Orders" at /dashboard/orders', async () => {
 });
 
 it('renders "Customer Orders" at /dashboard/orders/customers for an admin', async () => {
-  mock.onGet(`${API_URL}/order`).reply(200, { orders: [], totalPages: 1, currentPage: 1, count: 0 });
+  mock.onPost(`${API_URL}/graphql`).reply(200, {
+    data: { orders: { orders: [], totalPages: 1, currentPage: 1, count: 0 } }
+  });
 
   renderWithProviders(<Order />, {
     route: '/dashboard/orders/customers',

@@ -8,6 +8,7 @@ import renderWithProviders from '../../../tests/renderWithProviders';
 import { API_URL } from 'app/constants';
 
 const mock = new MockAdapter(axios);
+const GRAPHQL_URL = `${API_URL}/graphql`;
 
 const history = { push: vi.fn(), goBack: vi.fn() };
 
@@ -18,8 +19,8 @@ afterEach(() => {
 });
 
 it('fetches the order on mount and renders its details', async () => {
-  mock.onGet(`${API_URL}/order/order-1`).reply(200, {
-    order: { _id: 'order-1', created: '2024-01-01T00:00:00.000Z', total: 10, totalTax: 1, totalWithTax: 11, products: [] }
+  mock.onPost(GRAPHQL_URL).reply(200, {
+    data: { order: { _id: 'order-1', created: '2024-01-01T00:00:00.000Z', total: 10, totalTax: 1, totalWithTax: 11, products: [] } }
   });
 
   renderWithProviders(<OrderPage match={{ params: { id: 'order-1' } }} history={history} />, {
@@ -34,7 +35,7 @@ it('shows "No order found." when the order has no id', async () => {
   // synchronously, overriding any preloaded isLoading:false before this
   // assertion could run — mock the endpoint and await the real
   // fetch-then-render cycle instead of trying to preload past it.
-  mock.onGet(`${API_URL}/order/missing`).reply(200, { order: {} });
+  mock.onPost(GRAPHQL_URL).reply(200, { data: { order: {} } });
 
   renderWithProviders(<OrderPage match={{ params: { id: 'missing' } }} history={history} />, {
     preloadedState: { account: { user: { _id: 'me' } } }
@@ -44,8 +45,8 @@ it('shows "No order found." when the order has no id', async () => {
 });
 
 it('re-fetches when the order id param changes', async () => {
-  mock.onGet(`${API_URL}/order/order-1`).reply(200, {
-    order: { _id: 'order-1', created: '2024-01-01T00:00:00.000Z', total: 10, totalTax: 1, totalWithTax: 11, products: [] }
+  mock.onPost(GRAPHQL_URL).reply(200, {
+    data: { order: { _id: 'order-1', created: '2024-01-01T00:00:00.000Z', total: 10, totalTax: 1, totalWithTax: 11, products: [] } }
   });
 
   const { rerender } = renderWithProviders(<OrderPage match={{ params: { id: 'order-1' } }} history={history} />, {
@@ -54,8 +55,8 @@ it('re-fetches when the order id param changes', async () => {
 
   await screen.findByText('order-1');
 
-  mock.onGet(`${API_URL}/order/order-2`).reply(200, {
-    order: { _id: 'order-2', created: '2024-01-02T00:00:00.000Z', total: 20, totalTax: 2, totalWithTax: 22, products: [] }
+  mock.onPost(GRAPHQL_URL).reply(200, {
+    data: { order: { _id: 'order-2', created: '2024-01-02T00:00:00.000Z', total: 20, totalTax: 2, totalWithTax: 22, products: [] } }
   });
 
   rerender(<OrderPage match={{ params: { id: 'order-2' } }} history={history} />);
@@ -64,8 +65,8 @@ it('re-fetches when the order id param changes', async () => {
 });
 
 it('goes back in history when "Back to orders" is clicked outside the post-checkout success flow', async () => {
-  mock.onGet(`${API_URL}/order/order-1`).reply(200, {
-    order: { _id: 'order-1', created: '2024-01-01T00:00:00.000Z', total: 10, totalTax: 1, totalWithTax: 11, products: [] }
+  mock.onPost(GRAPHQL_URL).reply(200, {
+    data: { order: { _id: 'order-1', created: '2024-01-01T00:00:00.000Z', total: 10, totalTax: 1, totalWithTax: 11, products: [] } }
   });
 
   renderWithProviders(<OrderPage match={{ params: { id: 'order-1' } }} history={history} />, {
@@ -81,8 +82,8 @@ it('goes back in history when "Back to orders" is clicked outside the post-check
 });
 
 it('routes to the orders list when arriving via OrderSuccess\'s "?success" link', async () => {
-  mock.onGet(`${API_URL}/order/order-1`).reply(200, {
-    order: { _id: 'order-1', created: '2024-01-01T00:00:00.000Z', total: 10, totalTax: 1, totalWithTax: 11, products: [] }
+  mock.onPost(GRAPHQL_URL).reply(200, {
+    data: { order: { _id: 'order-1', created: '2024-01-01T00:00:00.000Z', total: 10, totalTax: 1, totalWithTax: 11, products: [] } }
   });
 
   window.history.pushState({}, '', '/order/order-1?success');

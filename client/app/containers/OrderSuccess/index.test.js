@@ -8,15 +8,14 @@ import renderWithProviders from '../../../tests/renderWithProviders';
 import { API_URL } from 'app/constants';
 
 const mock = new MockAdapter(axios);
+const GRAPHQL_URL = `${API_URL}/graphql`;
 
 afterEach(() => {
   mock.reset();
 });
 
 it('fetches the order on mount and shows the confirmation message', async () => {
-  mock.onGet(`${API_URL}/order/order-1`).reply(200, {
-    order: { _id: 'order-1' }
-  });
+  mock.onPost(GRAPHQL_URL).reply(200, { data: { order: { _id: 'order-1' } } });
 
   renderWithProviders(<OrderSuccess match={{ params: { id: 'order-1' } }} />);
 
@@ -29,7 +28,7 @@ it('shows "No order found." when the order has no id', async () => {
   // synchronously, overriding any preloaded isLoading:false before this
   // assertion could run — mock the endpoint and await the real
   // fetch-then-render cycle instead of trying to preload past it.
-  mock.onGet(`${API_URL}/order/missing`).reply(200, { order: {} });
+  mock.onPost(GRAPHQL_URL).reply(200, { data: { order: {} } });
 
   renderWithProviders(<OrderSuccess match={{ params: { id: 'missing' } }} />);
 
@@ -37,13 +36,13 @@ it('shows "No order found." when the order has no id', async () => {
 });
 
 it('re-fetches when the order id param changes', async () => {
-  mock.onGet(`${API_URL}/order/order-1`).reply(200, { order: { _id: 'order-1' } });
+  mock.onPost(GRAPHQL_URL).reply(200, { data: { order: { _id: 'order-1' } } });
 
   const { rerender } = renderWithProviders(<OrderSuccess match={{ params: { id: 'order-1' } }} />);
 
   await screen.findByText('Thank you for your order.');
 
-  mock.onGet(`${API_URL}/order/order-2`).reply(200, { order: { _id: 'order-2' } });
+  mock.onPost(GRAPHQL_URL).reply(200, { data: { order: { _id: 'order-2' } } });
 
   rerender(<OrderSuccess match={{ params: { id: 'order-2' } }} />);
 

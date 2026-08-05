@@ -53,7 +53,7 @@ it('shows field-level validation errors', () => {
 });
 
 it('submits the token to the real merchant-signup endpoint', async () => {
-  mock.onPost(`${API_URL}/merchant/signup/tok`).reply(200, { success: true });
+  mock.onPost(`${API_URL}/graphql`).reply(200, { data: { merchantSignup: { success: true } } });
 
   const validForm = {
     email: 'jane@example.com',
@@ -70,5 +70,6 @@ it('submits the token to the real merchant-signup endpoint', async () => {
   fireEvent.submit(container.querySelector('form'));
 
   await vi.waitFor(() => expect(mock.history.post).toHaveLength(1));
-  expect(mock.history.post[0].url).toBe(`${API_URL}/merchant/signup/tok`);
+  expect(mock.history.post[0].url).toBe(`${API_URL}/graphql`);
+  expect(JSON.parse(mock.history.post[0].data).variables).toEqual({ token: 'tok', ...validForm });
 });

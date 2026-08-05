@@ -6,7 +6,8 @@
 
 import { push } from 'connected-react-router';
 import { success } from 'react-notification-system-redux';
-import axios from 'axios';
+
+import graphqlRequest from '../../utils/graphql';
 
 import {
   HANDLE_CART,
@@ -22,7 +23,7 @@ import {
   RESET_PRODUCT_SHOP
 } from '../Product/constants';
 
-import { API_URL, CART_ID, CART_ITEMS, CART_TOTAL } from '../../constants';
+import { CART_ID, CART_ITEMS, CART_TOTAL } from '../../constants';
 import handleError from '../../utils/error';
 import { allFieldsValidation } from '../../utils/validation';
 import { toggleCart } from '../Navigation/actions';
@@ -162,13 +163,22 @@ export const handleShopping = () => {
   };
 };
 
-// Creates the server-side Cart document (server/routes/api/cart.js POST
-// /add) that Order.add later references. NOTE: only runs when no cartId is
-// already stored — once a server cart exists, adding/removing items
-// afterward updates localStorage/Redux but does NOT recreate or patch the
-// server-side cart, so if the user changes their cart after a cartId was
-// already issued (e.g. started checkout, went back, changed items), the
-// order could end up placed against a stale snapshot of the cart.
+const ADD_CART_MUTATION = `
+  mutation AddCart($products: [CartItemInput]!) {
+    addCart(products: $products) {
+      cartId
+    }
+  }
+`;
+
+// Creates the server-side Cart document (commerce_server's addCart
+// mutation) that Order.add later references. NOTE: only runs when no
+// cartId is already stored — once a server cart exists, adding/removing
+// items afterward updates localStorage/Redux but does NOT recreate or
+// patch the server-side cart, so if the user changes their cart after a
+// cartId was already issued (e.g. started checkout, went back, changed
+// items), the order could end up placed against a stale snapshot of the
+// cart.
 export const getCartId = () => {
   return async (dispatch, getState) => {
     try {
@@ -178,9 +188,9 @@ export const getCartId = () => {
 
       // create cart id if there is no one
       if (!cartId) {
-        const response = await axios.post(`${API_URL}/cart/add`, { products });
+        const data = await graphqlRequest(ADD_CART_MUTATION, { products });
 
-        dispatch(setCartId(response.data.cartId));
+        dispatch(setCartId(data.addCart.cartId));
       }
     } catch (error) {
       handleError(error, dispatch);

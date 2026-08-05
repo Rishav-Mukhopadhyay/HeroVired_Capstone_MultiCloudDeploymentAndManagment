@@ -6,7 +6,6 @@
 
 import { push, goBack } from 'connected-react-router';
 import { success } from 'react-notification-system-redux';
-import axios from 'axios';
 
 import {
   FETCH_MERCHANTS,
@@ -25,8 +24,82 @@ import {
 
 import handleError from '../../utils/error';
 import { allFieldsValidation } from '../../utils/validation';
+import graphqlRequest from '../../utils/graphql';
 import { signOut } from '../Login/actions';
-import { API_URL } from '../../constants';
+
+// Every merchant field selected below (_id, name, email, phoneNumber,
+// brandName, business, isActive, status, created) mirrors exactly what the
+// old REST JSON body carried.
+const MERCHANT_FIELDS = `_id name email phoneNumber brandName business isActive status created`;
+
+const ADD_MERCHANT_MUTATION = `
+  mutation AddMerchant($name: String, $email: String, $phoneNumber: String, $brandName: String, $business: String) {
+    addMerchant(name: $name, email: $email, phoneNumber: $phoneNumber, brandName: $brandName, business: $business) {
+      success
+      message
+    }
+  }
+`;
+
+const MERCHANTS_QUERY = `
+  query Merchants($page: Int, $limit: Int) {
+    merchants(page: $page, limit: $limit) {
+      merchants { ${MERCHANT_FIELDS} }
+      totalPages
+      currentPage
+      count
+    }
+  }
+`;
+
+const MERCHANT_SEARCH_QUERY = `
+  query MerchantSearch($search: String) {
+    merchantSearch(search: $search) {
+      merchants { ${MERCHANT_FIELDS} }
+    }
+  }
+`;
+
+const SET_MERCHANT_ACTIVE_MUTATION = `
+  mutation SetMerchantActive($merchantId: ID!, $isActive: Boolean!) {
+    setMerchantActive(merchantId: $merchantId, isActive: $isActive) {
+      success
+    }
+  }
+`;
+
+const APPROVE_MERCHANT_MUTATION = `
+  mutation ApproveMerchant($merchantId: ID!) {
+    approveMerchant(merchantId: $merchantId) {
+      success
+    }
+  }
+`;
+
+const REJECT_MERCHANT_MUTATION = `
+  mutation RejectMerchant($merchantId: ID!) {
+    rejectMerchant(merchantId: $merchantId) {
+      success
+    }
+  }
+`;
+
+const MERCHANT_SIGNUP_MUTATION = `
+  mutation MerchantSignup($token: String!, $email: String, $password: String, $firstName: String, $lastName: String) {
+    merchantSignup(token: $token, email: $email, password: $password, firstName: $firstName, lastName: $lastName) {
+      success
+    }
+  }
+`;
+
+const DELETE_MERCHANT_MUTATION = `
+  mutation DeleteMerchant($merchantId: ID!) {
+    deleteMerchant(merchantId: $merchantId) {
+      success
+      message
+    }
+  }
+`;
 
 // Merchant duck covers two distinct flows sharing one reducer: the admin's
 // merchant-application management (merchantFormData/formErrors — used by
@@ -102,15 +175,16 @@ export const addMerchant = (isBack = false) => {
       dispatch(setMerchantLoading(true));
       dispatch(setMerchantSubmitting(true));
 
-      const response = await axios.post(`${API_URL}/merchant/add`, merchant);
+      const data = await graphqlRequest(ADD_MERCHANT_MUTATION, merchant);
+      const result = data.addMerchant;
 
       const successfulOptions = {
-        title: `${response.data.message}`,
+        title: `${result.message}`,
         position: 'tr',
         autoDismiss: 1
       };
 
-      if (response.data.success === true) {
+      if (result.success === true) {
         dispatch(success(successfulOptions));
         dispatch({ type: RESET_MERCHANT });
         if (isBack) dispatch(goBack());
@@ -129,14 +203,8 @@ export const fetchMerchants = (n, v) => {
     try {
       dispatch(setMerchantLoading(true));
 
-      const response = await axios.get(`${API_URL}/merchant`, {
-        params: {
-          page: v ?? 1,
-          limit: 20
-        }
-      });
-
-      const { merchants, totalPages, currentPage, count } = response.data;
+      const data = await graphqlRequest(MERCHANTS_QUERY, { page: v ?? 1, limit: 20 });
+      const { merchants, totalPages, currentPage, count } = data.merchants;
 
       dispatch({
         type: FETCH_MERCHANTS,
@@ -160,15 +228,11 @@ export const searchMerchants = filter => {
     try {
       dispatch(setMerchantLoading(true));
 
-      const response = await axios.get(`${API_URL}/merchant/search`, {
-        params: {
-          search: filter.value
-        }
-      });
+      const data = await graphqlRequest(MERCHANT_SEARCH_QUERY, { search: filter.value });
 
       dispatch({
         type: FETCH_SEARCHED_MERCHANTS,
-        payload: response.data.merchants
+        payload: data.merchantSearch.merchants
       });
     } catch (error) {
       handleError(error, dispatch);
@@ -185,10 +249,9 @@ export const searchMerchants = filter => {
 export const disableMerchant = (merchant, value, search, page) => {
   return async (dispatch, getState) => {
     try {
-      await axios.put(`${API_URL}/merchant/${merchant._id}/active`, {
-        merchant: {
-          isActive: value
-        }
+      await graphqlRequest(SET_MERCHANT_ACTIVE_MUTATION, {
+        merchantId: merchant._id,
+        isActive: value
       });
 
       if (search)
@@ -203,7 +266,7 @@ export const disableMerchant = (merchant, value, search, page) => {
 export const approveMerchant = (merchant, search, page) => {
   return async (dispatch, getState) => {
     try {
-      await axios.put(`${API_URL}/merchant/approve/${merchant._id}`);
+      await graphqlRequest(APPROVE_MERCHANT_MUTATION, { merchantId: merchant._id });
 
       if (search)
         return dispatch(searchMerchants({ name: 'merchant', value: search })); // update search list if this is a search result
@@ -217,7 +280,7 @@ export const approveMerchant = (merchant, search, page) => {
 export const rejectMerchant = (merchant, search, page) => {
   return async (dispatch, getState) => {
     try {
-      await axios.put(`${API_URL}/merchant/reject/${merchant._id}`);
+      await graphqlRequest(REJECT_MERCHANT_MUTATION, { merchantId: merchant._id });
 
       if (search)
         return dispatch(searchMerchants({ name: 'merchant', value: search })); // update search list if this is a search result
@@ -255,7 +318,7 @@ export const merchantSignUp = token => {
         return dispatch({ type: SET_SIGNUP_FORM_ERRORS, payload: errors });
       }
 
-      await axios.post(`${API_URL}/merchant/signup/${token}`, merchant);
+      await graphqlRequest(MERCHANT_SIGNUP_MUTATION, { token, ...merchant });
 
       const successfulOptions = {
         title: `You have signed up successfully! Please sign in with the email and password. Thank you!`,
@@ -278,17 +341,16 @@ export const merchantSignUp = token => {
 export const deleteMerchant = (merchant, search, page) => {
   return async (dispatch, getState) => {
     try {
-      const response = await axios.delete(
-        `${API_URL}/merchant/delete/${merchant._id}`
-      );
+      const data = await graphqlRequest(DELETE_MERCHANT_MUTATION, { merchantId: merchant._id });
+      const result = data.deleteMerchant;
 
       const successfulOptions = {
-        title: `${response.data.message}`,
+        title: `${result.message}`,
         position: 'tr',
         autoDismiss: 1
       };
 
-      if (response.data.success === true) {
+      if (result.success === true) {
         dispatch(success(successfulOptions));
 
         if (search)

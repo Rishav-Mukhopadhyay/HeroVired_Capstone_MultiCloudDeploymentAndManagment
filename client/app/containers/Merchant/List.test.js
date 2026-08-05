@@ -8,6 +8,7 @@ import renderWithProviders from '../../../tests/renderWithProviders';
 import { API_URL, ROLES, MERCHANT_STATUS } from 'app/constants';
 
 const mock = new MockAdapter(axios);
+const GRAPHQL_URL = `${API_URL}/graphql`;
 
 afterEach(() => {
   mock.reset();
@@ -24,12 +25,24 @@ const merchant = {
   status: MERCHANT_STATUS.Waiting_Approval
 };
 
+// Every merchant mutation (approve/reject/delete/setActive) triggers a
+// follow-up list-or-search re-fetch afterward, and all of it — the initial
+// load, the mutation, and the re-fetch — now goes through the same POST
+// /api/graphql endpoint. Tests that exercise more than one of those in a
+// single render dispatch by the request body's operation name instead of
+// by URL/method the way the old REST mocks did.
+const byOperation = handlers => config => {
+  const { query } = JSON.parse(config.data);
+  const match = handlers.find(([name]) => query.includes(`query ${name}`) || query.includes(`mutation ${name}`));
+  return match ? [200, { data: match[1] }] : [500, {}];
+};
+
+const postedOperationNames = () =>
+  mock.history.post.map(r => JSON.parse(r.data).query.match(/(?:query|mutation)\s+(\w+)/)?.[1]);
+
 it('fetches merchants on mount and renders them with pagination when there are multiple pages', async () => {
-  mock.onGet(`${API_URL}/merchant`).reply(200, {
-    merchants: [merchant],
-    totalPages: 2,
-    currentPage: 1,
-    count: 15
+  mock.onPost(GRAPHQL_URL).reply(200, {
+    data: { merchants: { merchants: [merchant], totalPages: 2, currentPage: 1, count: 15 } }
   });
 
   renderWithProviders(<List history={{ push: vi.fn() }} />, {
@@ -42,7 +55,7 @@ it('fetches merchants on mount and renders them with pagination when there are m
 });
 
 it('shows "No merchants found." when the list is empty', async () => {
-  mock.onGet(`${API_URL}/merchant`).reply(200, { merchants: [], totalPages: 1, currentPage: 1, count: 0 });
+  mock.onPost(GRAPHQL_URL).reply(200, { data: { merchants: { merchants: [], totalPages: 1, currentPage: 1, count: 0 } } });
 
   renderWithProviders(<List history={{ push: vi.fn() }} />, {
     preloadedState: { account: { user: { role: ROLES.Admin } } }
@@ -52,7 +65,7 @@ it('shows "No merchants found." when the list is empty', async () => {
 });
 
 it('navigates to the add-merchant page when "Add" is clicked (admin only)', async () => {
-  mock.onGet(`${API_URL}/merchant`).reply(200, { merchants: [], totalPages: 1, currentPage: 1, count: 0 });
+  mock.onPost(GRAPHQL_URL).reply(200, { data: { merchants: { merchants: [], totalPages: 1, currentPage: 1, count: 0 } } });
   const history = { push: vi.fn() };
 
   renderWithProviders(<List history={history} />, {
@@ -71,8 +84,12 @@ it('navigates to the add-merchant page when "Add" is clicked (admin only)', asyn
 // and calling setState on it — fake timers let us flush the debounce
 // deterministically inside this test instead.
 it('searches merchants (2+ chars) and shows the search-scoped count without pagination', async () => {
-  mock.onGet(`${API_URL}/merchant`).reply(200, { merchants: [merchant], totalPages: 2, currentPage: 1, count: 15 });
-  mock.onGet(`${API_URL}/merchant/search`).reply(200, { merchants: [{ ...merchant, _id: '2', name: 'Bob' }] });
+  mock.onPost(GRAPHQL_URL).reply(
+    byOperation([
+      ['Merchants', { merchants: { merchants: [merchant], totalPages: 2, currentPage: 1, count: 15 } }],
+      ['MerchantSearch', { merchantSearch: { merchants: [{ ...merchant, _id: '2', name: 'Bob' }] } }]
+    ])
+  );
 
   renderWithProviders(<List history={{ push: vi.fn() }} />, {
     preloadedState: { account: { user: { role: ROLES.Admin } } }
@@ -87,15 +104,18 @@ it('searches merchants (2+ chars) and shows the search-scoped count without pagi
   vi.advanceTimersByTime(1000);
   vi.useRealTimers();
 
-  await vi.waitFor(() => expect(mock.history.get.some(r => r.url === `${API_URL}/merchant/search`)).toBe(true));
   expect(await screen.findByText('Bob')).toBeInTheDocument();
   expect(screen.getByText('1 merchants')).toBeInTheDocument();
   expect(document.querySelector('.pagination')).not.toBeInTheDocument();
 });
 
 it('clears the search (fewer than 2 chars) and falls back to the plain merchants list', async () => {
-  mock.onGet(`${API_URL}/merchant`).reply(200, { merchants: [merchant], totalPages: 1, currentPage: 1, count: 1 });
-  mock.onGet(`${API_URL}/merchant/search`).reply(200, { merchants: [{ ...merchant, _id: '2', name: 'Bob' }] });
+  mock.onPost(GRAPHQL_URL).reply(
+    byOperation([
+      ['Merchants', { merchants: { merchants: [merchant], totalPages: 1, currentPage: 1, count: 1 } }],
+      ['MerchantSearch', { merchantSearch: { merchants: [{ ...merchant, _id: '2', name: 'Bob' }] } }]
+    ])
+  );
 
   renderWithProviders(<List history={{ push: vi.fn() }} />, {
     preloadedState: { account: { user: { role: ROLES.Admin } } }
@@ -120,8 +140,12 @@ it('clears the search (fewer than 2 chars) and falls back to the plain merchants
 });
 
 it('approves a merchant from the list, scoped to the current search/page', async () => {
-  mock.onGet(`${API_URL}/merchant`).reply(200, { merchants: [merchant], totalPages: 1, currentPage: 1, count: 1 });
-  mock.onPut(`${API_URL}/merchant/approve/1`).reply(200, {});
+  mock.onPost(GRAPHQL_URL).reply(
+    byOperation([
+      ['Merchants', { merchants: { merchants: [merchant], totalPages: 1, currentPage: 1, count: 1 } }],
+      ['ApproveMerchant', { approveMerchant: { success: true } }]
+    ])
+  );
 
   renderWithProviders(<List history={{ push: vi.fn() }} />, {
     preloadedState: { account: { user: { role: ROLES.Admin } } }
@@ -130,14 +154,16 @@ it('approves a merchant from the list, scoped to the current search/page', async
   await screen.findByText('Acme Co');
   fireEvent.click(document.getElementById('tooltip-approve-1'));
 
-  await vi.waitFor(() =>
-    expect(mock.history.put.some(r => r.url === `${API_URL}/merchant/approve/1`)).toBe(true)
-  );
+  await vi.waitFor(() => expect(postedOperationNames()).toContain('ApproveMerchant'));
 });
 
 it('rejects a merchant from the list, scoped to the current search/page', async () => {
-  mock.onGet(`${API_URL}/merchant`).reply(200, { merchants: [merchant], totalPages: 1, currentPage: 1, count: 1 });
-  mock.onPut(`${API_URL}/merchant/reject/1`).reply(200, {});
+  mock.onPost(GRAPHQL_URL).reply(
+    byOperation([
+      ['Merchants', { merchants: { merchants: [merchant], totalPages: 1, currentPage: 1, count: 1 } }],
+      ['RejectMerchant', { rejectMerchant: { success: true } }]
+    ])
+  );
 
   renderWithProviders(<List history={{ push: vi.fn() }} />, {
     preloadedState: { account: { user: { role: ROLES.Admin } } }
@@ -146,14 +172,16 @@ it('rejects a merchant from the list, scoped to the current search/page', async 
   await screen.findByText('Acme Co');
   fireEvent.click(document.getElementById('tooltip-reject-1'));
 
-  await vi.waitFor(() =>
-    expect(mock.history.put.some(r => r.url === `${API_URL}/merchant/reject/1`)).toBe(true)
-  );
+  await vi.waitFor(() => expect(postedOperationNames()).toContain('RejectMerchant'));
 });
 
 it('deletes a merchant from the list, scoped to the current search/page', async () => {
-  mock.onGet(`${API_URL}/merchant`).reply(200, { merchants: [merchant], totalPages: 1, currentPage: 1, count: 1 });
-  mock.onDelete(`${API_URL}/merchant/delete/1`).reply(200, { success: true, message: 'Deleted!' });
+  mock.onPost(GRAPHQL_URL).reply(
+    byOperation([
+      ['Merchants', { merchants: { merchants: [merchant], totalPages: 1, currentPage: 1, count: 1 } }],
+      ['DeleteMerchant', { deleteMerchant: { success: true, message: 'Deleted!' } }]
+    ])
+  );
 
   renderWithProviders(<List history={{ push: vi.fn() }} />, {
     preloadedState: { account: { user: { role: ROLES.Admin } } }
@@ -162,15 +190,17 @@ it('deletes a merchant from the list, scoped to the current search/page', async 
   await screen.findByText('Acme Co');
   fireEvent.click(document.getElementById('tooltip-delete-1'));
 
-  await vi.waitFor(() =>
-    expect(mock.history.delete.some(r => r.url === `${API_URL}/merchant/delete/1`)).toBe(true)
-  );
+  await vi.waitFor(() => expect(postedOperationNames()).toContain('DeleteMerchant'));
 });
 
 it('disables an approved merchant from its list popover, scoped to the current search/page', async () => {
   const approvedMerchant = { ...merchant, status: MERCHANT_STATUS.Approved, isActive: true };
-  mock.onGet(`${API_URL}/merchant`).reply(200, { merchants: [approvedMerchant], totalPages: 1, currentPage: 1, count: 1 });
-  mock.onPut(`${API_URL}/merchant/1/active`).reply(200, {});
+  mock.onPost(GRAPHQL_URL).reply(
+    byOperation([
+      ['Merchants', { merchants: { merchants: [approvedMerchant], totalPages: 1, currentPage: 1, count: 1 } }],
+      ['SetMerchantActive', { setMerchantActive: { success: true } }]
+    ])
+  );
 
   renderWithProviders(<List history={{ push: vi.fn() }} />, {
     preloadedState: { account: { user: { role: ROLES.Admin } } }
@@ -189,7 +219,5 @@ it('disables an approved merchant from its list popover, scoped to the current s
   const disableButtons = screen.getAllByText('Disable Merchant');
   fireEvent.click(disableButtons[disableButtons.length - 1]);
 
-  await vi.waitFor(() =>
-    expect(mock.history.put.some(r => r.url === `${API_URL}/merchant/1/active`)).toBe(true)
-  );
+  await vi.waitFor(() => expect(postedOperationNames()).toContain('SetMerchantActive'));
 });

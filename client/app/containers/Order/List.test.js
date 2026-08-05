@@ -8,6 +8,7 @@ import renderWithProviders from '../../../tests/renderWithProviders';
 import { API_URL, ROLES } from 'app/constants';
 
 const mock = new MockAdapter(axios);
+const GRAPHQL_URL = `${API_URL}/graphql`;
 
 afterEach(() => {
   mock.reset();
@@ -21,7 +22,7 @@ const order = {
 };
 
 it("fetches the caller's own orders on mount and renders them with pagination when there are multiple pages", async () => {
-  mock.onGet(`${API_URL}/order/me`).reply(200, { orders: [order], totalPages: 2, currentPage: 1, count: 15 });
+  mock.onPost(GRAPHQL_URL).reply(200, { data: { myOrders: { orders: [order], totalPages: 2, currentPage: 1, count: 15 } } });
 
   renderWithProviders(<List history={{ push: vi.fn() }} />, {
     preloadedState: { account: { user: { role: ROLES.Member } } }
@@ -33,7 +34,7 @@ it("fetches the caller's own orders on mount and renders them with pagination wh
 });
 
 it('shows "You have no orders yet." when the list is empty', async () => {
-  mock.onGet(`${API_URL}/order/me`).reply(200, { orders: [], totalPages: 1, currentPage: 1, count: 0 });
+  mock.onPost(GRAPHQL_URL).reply(200, { data: { myOrders: { orders: [], totalPages: 1, currentPage: 1, count: 0 } } });
 
   renderWithProviders(<List history={{ push: vi.fn() }} />, {
     preloadedState: { account: { user: { role: ROLES.Member } } }
@@ -43,7 +44,7 @@ it('shows "You have no orders yet." when the list is empty', async () => {
 });
 
 it('shows a "Customer Orders" shortcut for an admin, navigating on click', async () => {
-  mock.onGet(`${API_URL}/order/me`).reply(200, { orders: [], totalPages: 1, currentPage: 1, count: 0 });
+  mock.onPost(GRAPHQL_URL).reply(200, { data: { myOrders: { orders: [], totalPages: 1, currentPage: 1, count: 0 } } });
   const history = { push: vi.fn() };
 
   renderWithProviders(<List history={history} />, {
@@ -57,7 +58,7 @@ it('shows a "Customer Orders" shortcut for an admin, navigating on click', async
 });
 
 it('hides the "Customer Orders" shortcut for a non-admin', async () => {
-  mock.onGet(`${API_URL}/order/me`).reply(200, { orders: [], totalPages: 1, currentPage: 1, count: 0 });
+  mock.onPost(GRAPHQL_URL).reply(200, { data: { myOrders: { orders: [], totalPages: 1, currentPage: 1, count: 0 } } });
 
   renderWithProviders(<List history={{ push: vi.fn() }} />, {
     preloadedState: { account: { user: { role: ROLES.Member } } }
@@ -68,11 +69,15 @@ it('hides the "Customer Orders" shortcut for a non-admin', async () => {
 });
 
 it('filters the already-loaded orders client-side (2+ chars) by id substring', async () => {
-  mock.onGet(`${API_URL}/order/me`).reply(200, {
-    orders: [order, { ...order, _id: 'order-xyz' }],
-    totalPages: 1,
-    currentPage: 1,
-    count: 2
+  mock.onPost(GRAPHQL_URL).reply(200, {
+    data: {
+      myOrders: {
+        orders: [order, { ...order, _id: 'order-xyz' }],
+        totalPages: 1,
+        currentPage: 1,
+        count: 2
+      }
+    }
   });
 
   renderWithProviders(<List history={{ push: vi.fn() }} />, {
@@ -91,11 +96,15 @@ it('filters the already-loaded orders client-side (2+ chars) by id substring', a
 });
 
 it('clears the client-side search filter (fewer than 2 chars)', async () => {
-  mock.onGet(`${API_URL}/order/me`).reply(200, {
-    orders: [order, { ...order, _id: 'order-xyz' }],
-    totalPages: 1,
-    currentPage: 1,
-    count: 2
+  mock.onPost(GRAPHQL_URL).reply(200, {
+    data: {
+      myOrders: {
+        orders: [order, { ...order, _id: 'order-xyz' }],
+        totalPages: 1,
+        currentPage: 1,
+        count: 2
+      }
+    }
   });
 
   renderWithProviders(<List history={{ push: vi.fn() }} />, {
@@ -120,7 +129,7 @@ it('clears the client-side search filter (fewer than 2 chars)', async () => {
 });
 
 it('re-fetches the given page via Pagination, scoped to the current page', async () => {
-  mock.onGet(`${API_URL}/order/me`).reply(200, { orders: [order], totalPages: 2, currentPage: 1, count: 15 });
+  mock.onPost(GRAPHQL_URL).reply(200, { data: { myOrders: { orders: [order], totalPages: 2, currentPage: 1, count: 15 } } });
 
   renderWithProviders(<List history={{ push: vi.fn() }} />, {
     preloadedState: { account: { user: { role: ROLES.Member } } }
@@ -129,5 +138,5 @@ it('re-fetches the given page via Pagination, scoped to the current page', async
   await screen.findByText('order-abc');
   fireEvent.click(screen.getByText('2'));
 
-  await vi.waitFor(() => expect(mock.history.get.filter(r => r.url === `${API_URL}/order/me`)).toHaveLength(2));
+  await vi.waitFor(() => expect(mock.history.post).toHaveLength(2));
 });

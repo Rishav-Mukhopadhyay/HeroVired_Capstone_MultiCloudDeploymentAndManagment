@@ -26,6 +26,7 @@ import {
 import { API_URL } from '../../constants';
 
 const mock = new MockAdapter(axios);
+const GRAPHQL_URL = `${API_URL}/graphql`;
 
 afterEach(() => {
   mock.reset();
@@ -33,6 +34,12 @@ afterEach(() => {
 });
 
 const flush = () => new Promise(resolve => setTimeout(resolve, 0));
+
+// Every server call in this duck now goes through the same POST
+// /api/graphql endpoint, so tests distinguish requests by inspecting the
+// posted body (JSON-parsed) rather than by URL/method the way REST mocks
+// used to.
+const lastRequestBody = () => JSON.parse(mock.history.post.at(-1).data);
 
 it('updateOrderStatus carries the raw payload', () => {
   expect(updateOrderStatus({ itemId: '1', status: 'Shipped' })).toEqual({
@@ -51,11 +58,8 @@ it('clearOrders is a plain action', () => {
 
 describe('fetchOrders', () => {
   it('fetches a page of orders and merges pagination info', async () => {
-    mock.onGet(`${API_URL}/order`).reply(200, {
-      orders: [{ _id: '1' }],
-      totalPages: 2,
-      currentPage: 1,
-      count: 15
+    mock.onPost(GRAPHQL_URL).reply(200, {
+      data: { orders: { orders: [{ _id: '1' }], totalPages: 2, currentPage: 1, count: 15 } }
     });
     const dispatch = vi.fn();
 
@@ -66,7 +70,7 @@ describe('fetchOrders', () => {
   });
 
   it('clears the orders list and shows an error on failure', async () => {
-    mock.onGet(`${API_URL}/order`).reply(400, { error: 'Bad' });
+    mock.onPost(GRAPHQL_URL).reply(400, { error: 'Bad' });
     const dispatch = vi.fn();
 
     await fetchOrders()(dispatch, () => ({}));
@@ -76,22 +80,21 @@ describe('fetchOrders', () => {
   });
 
   it('falls back to page 1 when explicitly passed a nullish page (default param only covers undefined)', async () => {
-    mock.onGet(`${API_URL}/order`).reply(200, { orders: [], totalPages: 1, currentPage: 1, count: 0 });
+    mock.onPost(GRAPHQL_URL).reply(200, {
+      data: { orders: { orders: [], totalPages: 1, currentPage: 1, count: 0 } }
+    });
     const dispatch = vi.fn();
 
     await fetchOrders(null)(dispatch, () => ({}));
 
-    expect(mock.history.get[0].params.page).toBe(1);
+    expect(lastRequestBody().variables.page).toBe(1);
   });
 });
 
 describe('fetchAccountOrders', () => {
   it("fetches the caller's own orders and merges pagination info", async () => {
-    mock.onGet(`${API_URL}/order/me`).reply(200, {
-      orders: [{ _id: '1' }],
-      totalPages: 1,
-      currentPage: 1,
-      count: 1
+    mock.onPost(GRAPHQL_URL).reply(200, {
+      data: { myOrders: { orders: [{ _id: '1' }], totalPages: 1, currentPage: 1, count: 1 } }
     });
     const dispatch = vi.fn();
 
@@ -102,7 +105,7 @@ describe('fetchAccountOrders', () => {
   });
 
   it('clears the orders list and shows an error on failure', async () => {
-    mock.onGet(`${API_URL}/order/me`).reply(400, { error: 'Bad' });
+    mock.onPost(GRAPHQL_URL).reply(400, { error: 'Bad' });
     const dispatch = vi.fn();
 
     await fetchAccountOrders()(dispatch, () => ({}));
@@ -112,28 +115,31 @@ describe('fetchAccountOrders', () => {
   });
 
   it('falls back to page 1 when explicitly passed a nullish page (default param only covers undefined)', async () => {
-    mock.onGet(`${API_URL}/order/me`).reply(200, { orders: [], totalPages: 1, currentPage: 1, count: 0 });
+    mock.onPost(GRAPHQL_URL).reply(200, {
+      data: { myOrders: { orders: [], totalPages: 1, currentPage: 1, count: 0 } }
+    });
     const dispatch = vi.fn();
 
     await fetchAccountOrders(null)(dispatch, () => ({}));
 
-    expect(mock.history.get[0].params.page).toBe(1);
+    expect(lastRequestBody().variables.page).toBe(1);
   });
 });
 
 describe('searchOrders', () => {
   it('searches orders by the given filter value', async () => {
-    mock.onGet(`${API_URL}/order/search`).reply(200, { orders: [{ _id: '1' }] });
+    mock.onPost(GRAPHQL_URL).reply(200, { data: { orderSearch: { orders: [{ _id: '1' }] } } });
     const dispatch = vi.fn();
 
     await searchOrders({ value: 'abc123' })(dispatch, () => ({}));
 
     const types = dispatch.mock.calls.map(call => call[0].type);
     expect(types).toEqual([SET_ORDERS_LOADING, FETCH_SEARCHED_ORDERS, SET_ORDERS_LOADING]);
+    expect(lastRequestBody().variables.search).toBe('abc123');
   });
 
   it('handles a failed search', async () => {
-    mock.onGet(`${API_URL}/order/search`).reply(400, { error: 'Bad' });
+    mock.onPost(GRAPHQL_URL).reply(400, { error: 'Bad' });
     const dispatch = vi.fn();
 
     await searchOrders({ value: 'abc123' })(dispatch, () => ({}));
@@ -144,7 +150,7 @@ describe('searchOrders', () => {
 
 describe('fetchOrder', () => {
   it('fetches an order, toggling loading around it by default', async () => {
-    mock.onGet(`${API_URL}/order/1`).reply(200, { order: { _id: '1' } });
+    mock.onPost(GRAPHQL_URL).reply(200, { data: { order: { _id: '1' } } });
     const dispatch = vi.fn();
 
     await fetchOrder('1')(dispatch, () => ({}));
@@ -154,7 +160,7 @@ describe('fetchOrder', () => {
   });
 
   it('skips the loading toggle when withLoading is false', async () => {
-    mock.onGet(`${API_URL}/order/1`).reply(200, { order: { _id: '1' } });
+    mock.onPost(GRAPHQL_URL).reply(200, { data: { order: { _id: '1' } } });
     const dispatch = vi.fn();
 
     await fetchOrder('1', false)(dispatch, () => ({}));
@@ -164,7 +170,7 @@ describe('fetchOrder', () => {
   });
 
   it('handles a failed fetch', async () => {
-    mock.onGet(`${API_URL}/order/1`).reply(400, { error: 'Bad' });
+    mock.onPost(GRAPHQL_URL).reply(400, { error: 'Bad' });
     const dispatch = vi.fn();
 
     await fetchOrder('1')(dispatch, () => ({}));
@@ -176,17 +182,18 @@ describe('fetchOrder', () => {
 
 describe('cancelOrder', () => {
   it('cancels the order and redirects to the orders list', async () => {
-    mock.onDelete(`${API_URL}/order/cancel/1`).reply(200, { success: true });
+    mock.onPost(GRAPHQL_URL).reply(200, { data: { cancelOrder: { success: true } } });
     const dispatch = vi.fn();
 
     await cancelOrder()(dispatch, () => ({ order: { order: { _id: '1' } } }));
 
     // push(...) from connected-react-router dispatches a plain action.
     expect(dispatch.mock.calls[0][0].type).toBe('@@router/CALL_HISTORY_METHOD');
+    expect(lastRequestBody().variables.orderId).toBe('1');
   });
 
   it('handles a failed cancel', async () => {
-    mock.onDelete(`${API_URL}/order/cancel/1`).reply(400, { error: 'Bad' });
+    mock.onPost(GRAPHQL_URL).reply(400, { error: 'Bad' });
     const dispatch = vi.fn();
 
     await cancelOrder()(dispatch, () => ({ order: { order: { _id: '1' } } }));
@@ -199,9 +206,8 @@ describe('updateOrderItemStatus', () => {
   const getState = () => ({ order: { order: { _id: 'order-1', cartId: 'cart-1' } } });
 
   it('redirects to the orders list when the whole order gets cancelled', async () => {
-    mock.onPut(`${API_URL}/order/status/item/item-1`).reply(200, {
-      orderCancelled: true,
-      message: 'Order cancelled'
+    mock.onPost(GRAPHQL_URL).reply(200, {
+      data: { updateOrderItemStatus: { orderCancelled: true, message: 'Order cancelled' } }
     });
     const dispatch = vi.fn();
 
@@ -213,7 +219,7 @@ describe('updateOrderItemStatus', () => {
   });
 
   it('updates the item status and re-fetches the order without cancelling', async () => {
-    mock.onPut(`${API_URL}/order/status/item/item-1`).reply(200, { message: 'Updated' });
+    mock.onPost(GRAPHQL_URL).reply(200, { data: { updateOrderItemStatus: { message: 'Updated' } } });
     const dispatch = vi.fn();
 
     await updateOrderItemStatus('item-1', 'Shipped')(dispatch, getState);
@@ -225,7 +231,7 @@ describe('updateOrderItemStatus', () => {
   });
 
   it('handles a failed request', async () => {
-    mock.onPut(`${API_URL}/order/status/item/item-1`).reply(400, { error: 'Bad' });
+    mock.onPost(GRAPHQL_URL).reply(400, { error: 'Bad' });
     const dispatch = vi.fn();
 
     await updateOrderItemStatus('item-1', 'Shipped')(dispatch, getState);
@@ -237,7 +243,7 @@ describe('updateOrderItemStatus', () => {
 describe('addOrder', () => {
   it('places the order, redirects to the success page, and clears the cart', async () => {
     localStorage.setItem('cart_id', 'cart-1');
-    mock.onPost(`${API_URL}/order/add`).reply(200, { order: { _id: 'order-1' } });
+    mock.onPost(GRAPHQL_URL).reply(200, { data: { placeOrder: { order: { _id: 'order-1' } } } });
     const dispatch = vi.fn();
 
     await addOrder()(dispatch, () => ({ cart: { cartTotal: 20 } }));
@@ -259,7 +265,7 @@ describe('addOrder', () => {
 
   it('handles a failed request', async () => {
     localStorage.setItem('cart_id', 'cart-1');
-    mock.onPost(`${API_URL}/order/add`).reply(400, { error: 'Bad' });
+    mock.onPost(GRAPHQL_URL).reply(400, { error: 'Bad' });
     const dispatch = vi.fn();
 
     await addOrder()(dispatch, () => ({ cart: { cartTotal: 20 } }));

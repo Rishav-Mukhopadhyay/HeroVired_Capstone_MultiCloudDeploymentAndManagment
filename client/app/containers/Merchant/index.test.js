@@ -14,7 +14,9 @@ afterEach(() => {
 });
 
 it('renders the merchant list at /dashboard/merchant', () => {
-  mock.onGet(`${API_URL}/merchant`).reply(200, { merchants: [], totalPages: 1, currentPage: 1, count: 0 });
+  mock.onPost(`${API_URL}/graphql`).reply(200, {
+    data: { merchants: { merchants: [], totalPages: 1, currentPage: 1, count: 0 } }
+  });
 
   renderWithProviders(<Merchant />, {
     route: '/dashboard/merchant',

@@ -175,7 +175,7 @@ describe('getCartId', () => {
   });
 
   it('creates a server cart and stores the returned id when none exists', async () => {
-    mock.onPost(`${API_URL}/cart/add`).reply(200, { cartId: 'new-cart-id' });
+    mock.onPost(`${API_URL}/graphql`).reply(200, { data: { addCart: { cartId: 'new-cart-id' } } });
     const dispatch = vi.fn();
 
     await getCartId()(dispatch, () => ({
@@ -186,7 +186,7 @@ describe('getCartId', () => {
   });
 
   it('handles a failed request', async () => {
-    mock.onPost(`${API_URL}/cart/add`).reply(400, { error: 'Bad' });
+    mock.onPost(`${API_URL}/graphql`).reply(400, { error: 'Bad' });
     const dispatch = vi.fn();
 
     await getCartId()(dispatch, () => ({ cart: { cartItems: [] } }));

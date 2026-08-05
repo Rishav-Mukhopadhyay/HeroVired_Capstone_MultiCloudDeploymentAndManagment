@@ -31,6 +31,7 @@ import {
 import { API_URL } from '../../constants';
 
 const mock = new MockAdapter(axios);
+const GRAPHQL_URL = `${API_URL}/graphql`;
 
 afterEach(() => {
   mock.reset();
@@ -73,7 +74,7 @@ describe('addMerchant', () => {
   });
 
   it('submits, resets the form, and stays on the page by default', async () => {
-    mock.onPost(`${API_URL}/merchant/add`).reply(200, { success: true, message: 'Added!' });
+    mock.onPost(GRAPHQL_URL).reply(200, { data: { addMerchant: { success: true, message: 'Added!' } } });
     const dispatch = vi.fn();
 
     await addMerchant()(dispatch, () => ({ merchant: { merchantFormData: validForm } }));
@@ -90,7 +91,7 @@ describe('addMerchant', () => {
   });
 
   it('navigates back when isBack is true', async () => {
-    mock.onPost(`${API_URL}/merchant/add`).reply(200, { success: true, message: 'Added!' });
+    mock.onPost(GRAPHQL_URL).reply(200, { data: { addMerchant: { success: true, message: 'Added!' } } });
     const dispatch = vi.fn();
 
     await addMerchant(true)(dispatch, () => ({ merchant: { merchantFormData: validForm } }));
@@ -100,7 +101,7 @@ describe('addMerchant', () => {
   });
 
   it('does not show a success toast or reset the form when the server reports failure', async () => {
-    mock.onPost(`${API_URL}/merchant/add`).reply(200, { success: false, message: 'Nope' });
+    mock.onPost(GRAPHQL_URL).reply(200, { data: { addMerchant: { success: false, message: 'Nope' } } });
     const dispatch = vi.fn();
 
     await addMerchant()(dispatch, () => ({ merchant: { merchantFormData: validForm } }));
@@ -110,7 +111,7 @@ describe('addMerchant', () => {
   });
 
   it('handles a failed request', async () => {
-    mock.onPost(`${API_URL}/merchant/add`).reply(400, { error: 'Bad' });
+    mock.onPost(GRAPHQL_URL).reply(400, { error: 'Bad' });
     const dispatch = vi.fn();
 
     await addMerchant()(dispatch, () => ({ merchant: { merchantFormData: validForm } }));
@@ -121,11 +122,8 @@ describe('addMerchant', () => {
 
 describe('fetchMerchants', () => {
   it('fetches a page of merchants and merges pagination info', async () => {
-    mock.onGet(`${API_URL}/merchant`).reply(200, {
-      merchants: [{ _id: '1' }],
-      totalPages: 2,
-      currentPage: 1,
-      count: 15
+    mock.onPost(GRAPHQL_URL).reply(200, {
+      data: { merchants: { merchants: [{ _id: '1' }], totalPages: 2, currentPage: 1, count: 15 } }
     });
     const dispatch = vi.fn();
 
@@ -136,7 +134,7 @@ describe('fetchMerchants', () => {
   });
 
   it('handles a failed fetch', async () => {
-    mock.onGet(`${API_URL}/merchant`).reply(400, { error: 'Bad' });
+    mock.onPost(GRAPHQL_URL).reply(400, { error: 'Bad' });
     const dispatch = vi.fn();
 
     await fetchMerchants()(dispatch, () => ({}));
@@ -147,7 +145,7 @@ describe('fetchMerchants', () => {
 
 describe('searchMerchants', () => {
   it('searches merchants by the given filter value', async () => {
-    mock.onGet(`${API_URL}/merchant/search`).reply(200, { merchants: [{ _id: '1' }] });
+    mock.onPost(GRAPHQL_URL).reply(200, { data: { merchantSearch: { merchants: [{ _id: '1' }] } } });
     const dispatch = vi.fn();
 
     await searchMerchants({ value: 'acme' })(dispatch, () => ({}));
@@ -157,7 +155,7 @@ describe('searchMerchants', () => {
   });
 
   it('handles a failed search', async () => {
-    mock.onGet(`${API_URL}/merchant/search`).reply(400, { error: 'Bad' });
+    mock.onPost(GRAPHQL_URL).reply(400, { error: 'Bad' });
     const dispatch = vi.fn();
 
     await searchMerchants({ value: 'acme' })(dispatch, () => ({}));
@@ -168,8 +166,13 @@ describe('searchMerchants', () => {
 
 describe('disableMerchant', () => {
   it('re-runs the search list when a search value is present', async () => {
-    mock.onPut(`${API_URL}/merchant/1/active`).reply(200, {});
-    mock.onGet(`${API_URL}/merchant/search`).reply(200, { merchants: [] });
+    // Two sequential POST /graphql calls: setMerchantActive, then the
+    // follow-up merchantSearch — replyOnce chains resolve them in order.
+    mock
+      .onPost(GRAPHQL_URL)
+      .replyOnce(200, { data: { setMerchantActive: { success: true } } })
+      .onPost(GRAPHQL_URL)
+      .replyOnce(200, { data: { merchantSearch: { merchants: [] } } });
     const dispatch = vi.fn();
 
     await disableMerchant({ _id: '1' }, false, 'acme', 1)(dispatch, () => ({}));
@@ -178,8 +181,11 @@ describe('disableMerchant', () => {
   });
 
   it('re-fetches the plain list when there is no search value', async () => {
-    mock.onPut(`${API_URL}/merchant/1/active`).reply(200, {});
-    mock.onGet(`${API_URL}/merchant`).reply(200, { merchants: [] });
+    mock
+      .onPost(GRAPHQL_URL)
+      .replyOnce(200, { data: { setMerchantActive: { success: true } } })
+      .onPost(GRAPHQL_URL)
+      .replyOnce(200, { data: { merchants: { merchants: [] } } });
     const dispatch = vi.fn();
 
     await disableMerchant({ _id: '1' }, false, undefined, 1)(dispatch, () => ({}));
@@ -188,7 +194,7 @@ describe('disableMerchant', () => {
   });
 
   it('handles a failed request', async () => {
-    mock.onPut(`${API_URL}/merchant/1/active`).reply(400, { error: 'Bad' });
+    mock.onPost(GRAPHQL_URL).reply(400, { error: 'Bad' });
     const dispatch = vi.fn();
 
     await disableMerchant({ _id: '1' }, false, undefined, 1)(dispatch, () => ({}));
@@ -199,8 +205,11 @@ describe('disableMerchant', () => {
 
 describe('approveMerchant', () => {
   it('re-runs the search list when a search value is present', async () => {
-    mock.onPut(`${API_URL}/merchant/approve/1`).reply(200, {});
-    mock.onGet(`${API_URL}/merchant/search`).reply(200, { merchants: [] });
+    mock
+      .onPost(GRAPHQL_URL)
+      .replyOnce(200, { data: { approveMerchant: { success: true } } })
+      .onPost(GRAPHQL_URL)
+      .replyOnce(200, { data: { merchantSearch: { merchants: [] } } });
     const dispatch = vi.fn();
 
     await approveMerchant({ _id: '1' }, 'acme', 1)(dispatch, () => ({}));
@@ -209,8 +218,11 @@ describe('approveMerchant', () => {
   });
 
   it('re-fetches the plain list when there is no search value', async () => {
-    mock.onPut(`${API_URL}/merchant/approve/1`).reply(200, {});
-    mock.onGet(`${API_URL}/merchant`).reply(200, { merchants: [] });
+    mock
+      .onPost(GRAPHQL_URL)
+      .replyOnce(200, { data: { approveMerchant: { success: true } } })
+      .onPost(GRAPHQL_URL)
+      .replyOnce(200, { data: { merchants: { merchants: [] } } });
     const dispatch = vi.fn();
 
     await approveMerchant({ _id: '1' }, undefined, 1)(dispatch, () => ({}));
@@ -219,7 +231,7 @@ describe('approveMerchant', () => {
   });
 
   it('handles a failed request', async () => {
-    mock.onPut(`${API_URL}/merchant/approve/1`).reply(400, { error: 'Bad' });
+    mock.onPost(GRAPHQL_URL).reply(400, { error: 'Bad' });
     const dispatch = vi.fn();
 
     await approveMerchant({ _id: '1' }, undefined, 1)(dispatch, () => ({}));
@@ -230,8 +242,11 @@ describe('approveMerchant', () => {
 
 describe('rejectMerchant', () => {
   it('re-runs the search list when a search value is present', async () => {
-    mock.onPut(`${API_URL}/merchant/reject/1`).reply(200, {});
-    mock.onGet(`${API_URL}/merchant/search`).reply(200, { merchants: [] });
+    mock
+      .onPost(GRAPHQL_URL)
+      .replyOnce(200, { data: { rejectMerchant: { success: true } } })
+      .onPost(GRAPHQL_URL)
+      .replyOnce(200, { data: { merchantSearch: { merchants: [] } } });
     const dispatch = vi.fn();
 
     await rejectMerchant({ _id: '1' }, 'acme', 1)(dispatch, () => ({}));
@@ -240,8 +255,11 @@ describe('rejectMerchant', () => {
   });
 
   it('re-fetches the plain list when there is no search value', async () => {
-    mock.onPut(`${API_URL}/merchant/reject/1`).reply(200, {});
-    mock.onGet(`${API_URL}/merchant`).reply(200, { merchants: [] });
+    mock
+      .onPost(GRAPHQL_URL)
+      .replyOnce(200, { data: { rejectMerchant: { success: true } } })
+      .onPost(GRAPHQL_URL)
+      .replyOnce(200, { data: { merchants: { merchants: [] } } });
     const dispatch = vi.fn();
 
     await rejectMerchant({ _id: '1' }, undefined, 1)(dispatch, () => ({}));
@@ -250,7 +268,7 @@ describe('rejectMerchant', () => {
   });
 
   it('handles a failed request', async () => {
-    mock.onPut(`${API_URL}/merchant/reject/1`).reply(400, { error: 'Bad' });
+    mock.onPost(GRAPHQL_URL).reply(400, { error: 'Bad' });
     const dispatch = vi.fn();
 
     await rejectMerchant({ _id: '1' }, undefined, 1)(dispatch, () => ({}));
@@ -276,7 +294,7 @@ describe('merchantSignUp', () => {
   });
 
   it('signs up, signs the user out, and redirects to login', async () => {
-    mock.onPost(`${API_URL}/merchant/signup/tok`).reply(200, { success: true });
+    mock.onPost(GRAPHQL_URL).reply(200, { data: { merchantSignup: { success: true } } });
     const dispatch = vi.fn();
 
     await merchantSignUp('tok')(dispatch, () => ({ merchant: { signupFormData: validForm } }));
@@ -291,7 +309,7 @@ describe('merchantSignUp', () => {
   });
 
   it('handles a failed request with a custom error title', async () => {
-    mock.onPost(`${API_URL}/merchant/signup/tok`).reply(400, { error: 'Bad' });
+    mock.onPost(GRAPHQL_URL).reply(400, { error: 'Bad' });
     const dispatch = vi.fn();
 
     await merchantSignUp('tok')(dispatch, () => ({ merchant: { signupFormData: validForm } }));
@@ -302,8 +320,11 @@ describe('merchantSignUp', () => {
 
 describe('deleteMerchant', () => {
   it('re-runs the search list when a search value is present', async () => {
-    mock.onDelete(`${API_URL}/merchant/delete/1`).reply(200, { success: true, message: 'Deleted!' });
-    mock.onGet(`${API_URL}/merchant/search`).reply(200, { merchants: [] });
+    mock
+      .onPost(GRAPHQL_URL)
+      .replyOnce(200, { data: { deleteMerchant: { success: true, message: 'Deleted!' } } })
+      .onPost(GRAPHQL_URL)
+      .replyOnce(200, { data: { merchantSearch: { merchants: [] } } });
     const dispatch = vi.fn();
 
     await deleteMerchant({ _id: '1' }, 'acme', 1)(dispatch, () => ({}));
@@ -314,8 +335,11 @@ describe('deleteMerchant', () => {
   });
 
   it('re-fetches the plain list when there is no search value', async () => {
-    mock.onDelete(`${API_URL}/merchant/delete/1`).reply(200, { success: true, message: 'Deleted!' });
-    mock.onGet(`${API_URL}/merchant`).reply(200, { merchants: [] });
+    mock
+      .onPost(GRAPHQL_URL)
+      .replyOnce(200, { data: { deleteMerchant: { success: true, message: 'Deleted!' } } })
+      .onPost(GRAPHQL_URL)
+      .replyOnce(200, { data: { merchants: { merchants: [] } } });
     const dispatch = vi.fn();
 
     await deleteMerchant({ _id: '1' }, undefined, 1)(dispatch, () => ({}));
@@ -326,7 +350,7 @@ describe('deleteMerchant', () => {
   });
 
   it('does nothing further when the server reports failure', async () => {
-    mock.onDelete(`${API_URL}/merchant/delete/1`).reply(200, { success: false, message: 'Nope' });
+    mock.onPost(GRAPHQL_URL).reply(200, { data: { deleteMerchant: { success: false, message: 'Nope' } } });
     const dispatch = vi.fn();
 
     await deleteMerchant({ _id: '1' }, undefined, 1)(dispatch, () => ({}));
@@ -335,7 +359,7 @@ describe('deleteMerchant', () => {
   });
 
   it('handles a failed delete', async () => {
-    mock.onDelete(`${API_URL}/merchant/delete/1`).reply(400, { error: 'Bad' });
+    mock.onPost(GRAPHQL_URL).reply(400, { error: 'Bad' });
     const dispatch = vi.fn();
 
     await deleteMerchant({ _id: '1' }, undefined, 1)(dispatch, () => ({}));

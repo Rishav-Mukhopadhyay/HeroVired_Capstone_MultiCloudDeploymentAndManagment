@@ -5,7 +5,6 @@
  */
 
 import { push } from 'connected-react-router';
-import axios from 'axios';
 import { success } from 'react-notification-system-redux';
 
 import {
@@ -21,7 +20,79 @@ import {
 import { clearCart, getCartId } from '../Cart/actions';
 import { toggleCart } from '../Navigation/actions';
 import handleError from '../../utils/error';
-import { API_URL } from '../../constants';
+import graphqlRequest from '../../utils/graphql';
+
+// Every order field selected below (_id, total, totalTax, totalWithTax,
+// created, cartId, products) mirrors exactly what the old REST JSON body
+// carried — `products` is a single opaque JSON blob field server-side
+// (app/graphql/types.py's GenericScalar), not individually-selectable
+// GraphQL fields, so the nested per-item shape
+// (products[i]._id/product/quantity/status/totalPrice/...) client
+// components already read is unchanged.
+const ORDER_FIELDS = `_id total totalTax totalWithTax created cartId products`;
+
+const ORDERS_QUERY = `
+  query Orders($page: Int, $limit: Int) {
+    orders(page: $page, limit: $limit) {
+      orders { ${ORDER_FIELDS} }
+      totalPages
+      currentPage
+      count
+    }
+  }
+`;
+
+const MY_ORDERS_QUERY = `
+  query MyOrders($page: Int, $limit: Int) {
+    myOrders(page: $page, limit: $limit) {
+      orders { ${ORDER_FIELDS} }
+      totalPages
+      currentPage
+      count
+    }
+  }
+`;
+
+const ORDER_SEARCH_QUERY = `
+  query OrderSearch($search: String) {
+    orderSearch(search: $search) {
+      orders { ${ORDER_FIELDS} }
+    }
+  }
+`;
+
+const ORDER_QUERY = `
+  query Order($id: ID!) {
+    order(id: $id) { ${ORDER_FIELDS} }
+  }
+`;
+
+const CANCEL_ORDER_MUTATION = `
+  mutation CancelOrder($orderId: ID!) {
+    cancelOrder(orderId: $orderId) {
+      success
+    }
+  }
+`;
+
+const UPDATE_ORDER_ITEM_STATUS_MUTATION = `
+  mutation UpdateOrderItemStatus($itemId: ID!, $orderId: ID, $cartId: ID, $status: String) {
+    updateOrderItemStatus(itemId: $itemId, orderId: $orderId, cartId: $cartId, status: $status) {
+      success
+      orderCancelled
+      message
+    }
+  }
+`;
+
+const PLACE_ORDER_MUTATION = `
+  mutation PlaceOrder($cartId: ID!, $total: Float) {
+    placeOrder(cartId: $cartId, total: $total) {
+      success
+      order { _id }
+    }
+  }
+`;
 
 // Order duck. fetchOrders (all orders, admin) and fetchAccountOrders (the
 // logged-in user's own orders) both write into the same `orders` state key
@@ -46,14 +117,8 @@ export const fetchOrders = (page = 1) => {
     try {
       dispatch(setOrderLoading(true));
 
-      const response = await axios.get(`${API_URL}/order`, {
-        params: {
-          page: page ?? 1,
-          limit: 20
-        }
-      });
-
-      const { orders, totalPages, currentPage, count } = response.data;
+      const data = await graphqlRequest(ORDERS_QUERY, { page: page ?? 1, limit: 20 });
+      const { orders, totalPages, currentPage, count } = data.orders;
 
       dispatch({
         type: FETCH_ORDERS,
@@ -78,14 +143,8 @@ export const fetchAccountOrders = (page = 1) => {
     try {
       dispatch(setOrderLoading(true));
 
-      const response = await axios.get(`${API_URL}/order/me`, {
-        params: {
-          page: page ?? 1,
-          limit: 20
-        }
-      });
-
-      const { orders, totalPages, currentPage, count } = response.data;
+      const data = await graphqlRequest(MY_ORDERS_QUERY, { page: page ?? 1, limit: 20 });
+      const { orders, totalPages, currentPage, count } = data.myOrders;
 
       dispatch({
         type: FETCH_ORDERS,
@@ -110,15 +169,11 @@ export const searchOrders = filter => {
     try {
       dispatch(setOrderLoading(true));
 
-      const response = await axios.get(`${API_URL}/order/search`, {
-        params: {
-          search: filter.value
-        }
-      });
+      const data = await graphqlRequest(ORDER_SEARCH_QUERY, { search: filter.value });
 
       dispatch({
         type: FETCH_SEARCHED_ORDERS,
-        payload: response.data.orders
+        payload: data.orderSearch.orders
       });
     } catch (error) {
       handleError(error, dispatch);
@@ -135,11 +190,11 @@ export const fetchOrder = (id, withLoading = true) => {
         dispatch(setOrderLoading(true));
       }
 
-      const response = await axios.get(`${API_URL}/order/${id}`);
+      const data = await graphqlRequest(ORDER_QUERY, { id });
 
       dispatch({
         type: FETCH_ORDER,
-        payload: response.data.order
+        payload: data.order
       });
     } catch (error) {
       handleError(error, dispatch);
@@ -156,7 +211,7 @@ export const cancelOrder = () => {
     try {
       const order = getState().order.order;
 
-      await axios.delete(`${API_URL}/order/cancel/${order._id}`);
+      await graphqlRequest(CANCEL_ORDER_MUTATION, { orderId: order._id });
 
       dispatch(push(`/dashboard/orders`));
     } catch (error) {
@@ -170,16 +225,15 @@ export const updateOrderItemStatus = (itemId, status) => {
     try {
       const order = getState().order.order;
 
-      const response = await axios.put(
-        `${API_URL}/order/status/item/${itemId}`,
-        {
-          orderId: order._id,
-          cartId: order.cartId,
-          status
-        }
-      );
+      const data = await graphqlRequest(UPDATE_ORDER_ITEM_STATUS_MUTATION, {
+        itemId,
+        orderId: order._id,
+        cartId: order.cartId,
+        status
+      });
+      const result = data.updateOrderItemStatus;
 
-      if (response.data.orderCancelled) {
+      if (result.orderCancelled) {
         dispatch(push(`/dashboard/orders`));
       } else {
         dispatch(updateOrderStatus({ itemId, status }));
@@ -187,7 +241,7 @@ export const updateOrderItemStatus = (itemId, status) => {
       }
 
       const successfulOptions = {
-        title: `${response.data.message}`,
+        title: `${result.message}`,
         position: 'tr',
         autoDismiss: 1
       };
@@ -209,12 +263,9 @@ export const addOrder = () => {
       const total = getState().cart.cartTotal;
 
       if (cartId) {
-        const response = await axios.post(`${API_URL}/order/add`, {
-          cartId,
-          total
-        });
+        const data = await graphqlRequest(PLACE_ORDER_MUTATION, { cartId, total });
 
-        dispatch(push(`/order/success/${response.data.order._id}`));
+        dispatch(push(`/order/success/${data.placeOrder.order._id}`));
         dispatch(clearCart());
       }
     } catch (error) {

@@ -35,7 +35,10 @@ const routes = [
     ],
     target: CATALOG_URL
   },
-  { path: [`${api}/cart`, `${api}/order`, `${api}/merchant`], target: COMMERCE_URL },
+  // commerce_server is a single GraphQL endpoint (not one REST path per
+  // resource like the other three services) — see CLAUDE.md's
+  // commerce_server section.
+  { path: [`${api}/graphql`], target: COMMERCE_URL },
   { path: [`${api}/contact`, `${api}/notification`], target: NOTIFICATION_URL }
 ];
 

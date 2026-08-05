@@ -24,7 +24,7 @@ it('renders the add-merchant form with a Cancel action that goes back', () => {
 });
 
 it('submitting a valid form calls addMerchant with isBack=true, navigating back on success', async () => {
-  mock.onPost(`${API_URL}/merchant/add`).reply(200, { success: true, message: 'Merchant added!' });
+  mock.onPost(`${API_URL}/graphql`).reply(200, { data: { addMerchant: { success: true, message: 'Merchant added!' } } });
 
   const validForm = {
     name: 'Jane Doe',

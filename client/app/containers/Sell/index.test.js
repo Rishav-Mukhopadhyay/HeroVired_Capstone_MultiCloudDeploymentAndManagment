@@ -43,11 +43,11 @@ it('typing into a field dispatches merchantChange and updates the real store', (
   expect(input).toHaveValue('Jane');
 });
 
-it('submitting a valid form calls addMerchant, which hits the real merchant/add endpoint', async () => {
+it('submitting a valid form calls addMerchant, which hits the real GraphQL endpoint', async () => {
   // The success toast itself is rendered by the separately-mounted
   // containers/Notification (see its own tests) — not present here, so this
   // asserts on the real HTTP call instead of a DOM toast.
-  mock.onPost(`${API_URL}/merchant/add`).reply(200, { success: true, message: 'Application submitted!' });
+  mock.onPost(`${API_URL}/graphql`).reply(200, { data: { addMerchant: { success: true, message: 'Application submitted!' } } });
 
   const validForm = {
     name: 'Jane Doe',
