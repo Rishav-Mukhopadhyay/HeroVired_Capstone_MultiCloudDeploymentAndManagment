@@ -22,3 +22,14 @@ npm run start
 ```
 
 Routes: `/api/contact/*`, `/api/notification/order-confirmation` (internal), plus a Socket.IO server on the same port. Normally reached through `api_gateway`, not directly, in local dev.
+
+## Testing
+
+```
+npm test           # jest --coverage
+npm run test:watch
+```
+
+`jest.config.js` fails the run below **100% statements/branches/functions/lines** coverage — the same bar every other service in this project holds. An HTML report is written to `coverage/index.html`. Tests use `mongodb-memory-server` (no real Mongo needed), supertest against each router in isolation, and real `socket.io-client` connections for the support-chat handshake/events — see `tests/` for the shared setup.
+
+Node's coverage tooling has no JaCoCo-style complexity counter; `npm run analyze:complexity` reports per-function cyclomatic complexity informationally (via a one-off `eslint` rule, not a committed ESLint config) instead of gating on it.

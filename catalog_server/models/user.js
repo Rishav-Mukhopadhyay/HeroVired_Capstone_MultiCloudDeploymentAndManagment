@@ -13,7 +13,14 @@ const { Schema } = Mongoose;
 const UserSchema = new Schema({
   email: {
     type: String,
+    // NOTE: arrow functions don't get their own `this`, so `this.provider`
+    // here resolves against the outer module scope (always undefined), not
+    // the document being validated — this ternary's `: true` branch is
+    // therefore permanently unreachable. Preserved as-is from the original
+    // Node monolith's User model, not "fixed" here (this copy never writes
+    // users anyway — see the file header).
     required: () => {
+      /* istanbul ignore next */
       return this.provider !== 'email' ? false : true;
     }
   },

@@ -10,6 +10,11 @@ const findUserBySocketId = socketId => users.find(x => x.socketId === socketId);
 
 const updatedUserStatus = (user, status) => {
   const existingUser = findUserById(user.id);
+  // `user` is always itself an entry already found via findUserBySocketId
+  // (this is only ever called from the disconnect handler below, guarded by
+  // `if (user)`), so this lookup by the same entry's own `id` can never
+  // actually miss — the `else` side is unreachable in practice.
+  /* istanbul ignore else */
   if (existingUser) {
     existingUser.online = status;
   }

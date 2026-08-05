@@ -13,6 +13,11 @@ const checkAuth = async req => {
       (await jwt.decode(req.headers.authorization.split(' ')[1])) ||
       req.headers.authorization;
 
+    // Unreachable: the `|| req.headers.authorization` fallback above always
+    // makes `token` truthy once the `!req.headers.authorization` guard has
+    // already passed — there's no header value that's truthy enough to
+    // reach here yet still falsy after that fallback.
+    /* istanbul ignore if */
     if (!token) {
       return null;
     }
