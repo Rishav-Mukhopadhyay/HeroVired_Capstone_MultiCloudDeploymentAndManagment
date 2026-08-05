@@ -3,13 +3,20 @@ node_modules
 package-lock.json
 yarn.lock
 pnpm-lock.yaml
+.venv/
+__pycache__/
+*.pyc
 
 # production
 build
 dist
+target/
 
 # test
 coverage
+htmlcov/
+.coverage
+.pytest_cache/
 seed_db/tests/globalConfig.json
 
 # misc
