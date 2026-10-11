@@ -19,3 +19,100 @@ In multi-cloud environments, managing resources across multiple cloud providers 
 - Monitoring: Prometheus and Grafana to track resource health and utilization across cloud providers
 - Alerting: PagerDuty or Slack API for real-time alerts on cloud resource status and usage
 - GitHub/GitLab: Version control and CI/CD integration to manage Terraform scripts and automate deployments
+
+---
+
+# MERN Ecommerce
+
+## Description
+
+An ecommerce store built with MERN stack, and utilizes third party API's. This ecommerce store enable three main different flows or implementations:
+
+1. Buyers browse the store categories, products and brands
+2. Sellers or Merchants manage their own brand component
+3. Admins manage and control the entire store components 
+
+The backend is split into four independent microservices plus a gateway — `identity_server/` (auth, user, address — **Java 21 / Spring Boot / Maven**, a rewrite of the original Node service with the same REST contract), `catalog_server/` (product, category, brand, review, wishlist — Node/Express), `commerce_server/` (cart, order, merchant — **Python 3.12 / Flask, and GraphQL, not REST** — a single `POST /api/graphql` endpoint instead of one route per resource, the one exception to every other service's REST convention), and `notification_server/` (contact, order-confirmation email, Socket.IO support chat — Node/Express) — fronted by `api_gateway/` (Node/Express), a reverse proxy that routes by path prefix. `client/` only ever talks to `api_gateway/` (`API_URL=http://localhost:3000/api`); it has no direct knowledge of the individual services behind it, that some are written in different languages, or that one of them speaks GraphQL instead of REST. Each of these six apps is independently deployable — see each one's own README for setup/deploy details: [client/README.md](client/README.md), [identity_server/README.md](identity_server/README.md), [catalog_server/README.md](catalog_server/README.md), [commerce_server/README.md](commerce_server/README.md), [notification_server/README.md](notification_server/README.md), [api_gateway/README.md](api_gateway/README.md). This root-level setup is only for running all of them together during local development. `seed_db/` is a separate project for seeding the database on demand — see [seed_db/README.md](seed_db/README.md); it never runs as a side effect of starting any of the above.
+
+### Features:
+
+  * Node provides the backend environment for this application
+  * Express middleware is used to handle requests, routes
+  * Mongoose schemas to model the application data
+  * React for displaying UI components
+  * Redux to manage application's state
+  * Redux Thunk middleware to handle asynchronous redux actions
+
+## Database Seed
+
+Seeding (an admin user plus sample categories/brands/products) is its own standalone project, `seed_db/` — it's run on demand, independently of the other apps, and never runs automatically when any of them starts. See [seed_db/README.md](seed_db/README.md) for setup and usage.
+
+## Local development install
+
+`npm install` in the project root will install dependencies in `client`, `catalog_server`/`notification_server`, and `api_gateway` (npm), build `identity_server` (Maven, via its wrapper — no separate Maven install needed, just JDK 21), and create `commerce_server`'s virtualenv + install its requirements (Python 3.12 needed on `PATH`), for running them all together locally. [See package.json](package.json)
+
+Some basic Git commands are:
+
+```
+git clone https://github.com/mohamedsamara/mern-ecommerce.git
+cd project
+npm install
+```
+
+## ENV
+
+Create a `.env` file for the client, each microservice, and the gateway. See examples and full variable descriptions:
+
+- [client/.env.example](client/.env.example) — details in [client/README.md](client/README.md)
+- [identity_server/.env.example](identity_server/.env.example) — details in [identity_server/README.md](identity_server/README.md)
+- [catalog_server/.env.example](catalog_server/.env.example) — details in [catalog_server/README.md](catalog_server/README.md)
+- [commerce_server/.env.example](commerce_server/.env.example) — details in [commerce_server/README.md](commerce_server/README.md)
+- [notification_server/.env.example](notification_server/.env.example) — details in [notification_server/README.md](notification_server/README.md)
+- [api_gateway/.env.example](api_gateway/.env.example) — details in [api_gateway/README.md](api_gateway/README.md)
+
+Every microservice's `JWT_SECRET` must be identical (stateless JWT verified independently by each one), and all of them plus `seed_db/` point `MONGO_URI` at the same database.
+
+## Start development
+
+```
+npm run dev
+```
+
+Runs the client dev server, all four microservices, and the API gateway concurrently, for local development only.
+
+## Deployment
+
+Each of `client/`, `identity_server/`, `catalog_server/`, `commerce_server/`, `notification_server/`, and `api_gateway/` deploys independently of the others and of this root setup — see each one's own README's "Deploying"/"Run" section. Deploying the microservices to different clouds only requires pointing `api_gateway`'s `IDENTITY_URL`/`CATALOG_URL`/`COMMERCE_URL`/`NOTIFICATION_URL` at wherever each one ends up.
+
+## Languages & tools
+
+- [Node](https://nodejs.org/en/)
+
+- [Express](https://expressjs.com/)
+
+- [Mongoose](https://mongoosejs.com/)
+
+- [React](https://reactjs.org/)
+
+- [Webpack](https://webpack.js.org/)
+
+
+### Code Formatter
+
+- Add a `.vscode` directory
+- Create a file `settings.json` inside `.vscode`
+- Install Prettier - Code formatter in VSCode
+- Add the following snippet:  
+
+```json
+
+    {
+      "editor.formatOnSave": true,
+      "prettier.singleQuote": true,
+      "prettier.arrowParens": "avoid",
+      "prettier.jsxSingleQuote": true,
+      "prettier.trailingComma": "none",
+      "javascript.preferences.quoteStyle": "single",
+    }
+
+```

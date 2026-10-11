@@ -1,0 +1,48 @@
+{
+  "name": "mern-ecommerce",
+  "version": "1.0.0",
+  "description": "MERN Ecommerce",
+  "main": "api_gateway/index.js",
+  "scripts": {
+    "dev": "npm-run-all --parallel dev:*",
+    "dev:client": "cd client && npm run dev",
+    "dev:identity": "cd identity_server && .\\mvnw.cmd spring-boot:run",
+    "dev:catalog": "cd catalog_server && npm run dev",
+    "dev:commerce": "cd commerce_server && .venv\\Scripts\\python.exe run.py",
+    "dev:notification": "cd notification_server && npm run dev",
+    "dev:gateway": "cd api_gateway && npm run dev",
+    "postinstall": "npm-run-all --parallel install:*",
+    "install:client": "cd client && npm install",
+    "install:identity": "cd identity_server && .\\mvnw.cmd -q -DskipTests package",
+    "install:catalog": "cd catalog_server && npm install",
+    "install:commerce": "cd commerce_server && python -m venv .venv && .venv\\Scripts\\python.exe -m pip install -r requirements-dev.txt",
+    "install:notification": "cd notification_server && npm install",
+    "install:gateway": "cd api_gateway && npm install",
+    "install:seed_db": "cd seed_db && npm install",
+    "seed": "cd seed_db && npm start",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mohamedsamara/mern-ecommerce.git"
+  },
+  "keywords": [
+    "node",
+    "express",
+    "mongoose",
+    "react",
+    "redux",
+    "redux-thunk",
+    "webpack"
+  ],
+  "author": "Mohamed Samara (https://github.com/mohamedsamara)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/mohamedsamara/mern-ecommerce/issues"
+  },
+  "homepage": "https://github.com/mohamedsamara/mern-ecommerce#readme",
+  "devDependencies": {
+    "cross-env": "^5.2.1",
+    "npm-run-all": "^4.1.5"
+  }
+}
